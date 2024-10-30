@@ -5,6 +5,7 @@ package otlpjsonconnector // import "github.com/open-telemetry/opentelemetry-col
 
 import (
 	"context"
+	"strings"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/connector"
@@ -52,7 +53,10 @@ func (c *connectorTraces) ConsumeLogs(ctx context.Context, pl plog.Logs) error {
 				lRecord := logRecord.LogRecords().At(k)
 				token := lRecord.Body()
 
-				if traceRegex.MatchString(token.AsString()) {
+				value := token.AsString()
+				// Check if the "resourceLogs" key exists in the JSON data
+				trimmed := strings.TrimLeft(value, "{ \"")
+				if strings.HasPrefix(trimmed, "resourceSpans") {
 					var t ptrace.Traces
 					t, err := tracesUnmarshaler.UnmarshalTraces([]byte(token.AsString()))
 					if err != nil {
@@ -63,7 +67,7 @@ func (c *connectorTraces) ConsumeLogs(ctx context.Context, pl plog.Logs) error {
 					if err != nil {
 						c.logger.Error("could not consume traces from otlp json", zap.Error(err))
 					}
-				} else if metricRegex.MatchString(token.AsString()) || logRegex.MatchString(token.AsString()) {
+				} else if strings.HasPrefix(trimmed, "resourceMetrics") || strings.HasPrefix(trimmed, "resourceLogs") {
 					continue
 				} else {
 					c.logger.Error("Invalid otlp payload")

@@ -5,7 +5,6 @@ package otlpjsonconnector // import "github.com/open-telemetry/opentelemetry-col
 
 import (
 	"context"
-	"regexp"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/connector"
@@ -13,10 +12,6 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/otlpjsonconnector/internal/metadata"
 )
-
-var logRegex = regexp.MustCompile(`resourceLogs"\s*:\s*\[`)
-var metricRegex = regexp.MustCompile(`resourceMetrics"\s*:\s*\[`)
-var traceRegex = regexp.MustCompile(`resourceSpans"\s*:\s*\[`)
 
 // NewFactory returns a ConnectorFactory.
 func NewFactory() connector.Factory {
