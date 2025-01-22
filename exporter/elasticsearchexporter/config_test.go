@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcompression"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 	"go.opentelemetry.io/collector/exporter/exporterbatcher"
@@ -74,7 +73,7 @@ func TestConfig(t *testing.T) {
 					Enabled: false,
 				},
 				Pipeline: "mypipeline",
-				ClientConfig: withDefaultHTTPClientConfig(func(cfg *confighttp.ClientConfig) {
+				customHTTPClientConfig: withDefaultHTTPClientConfig(func(cfg *customHTTPClientConfig) {
 					cfg.Timeout = 2 * time.Minute
 					cfg.MaxIdleConns = &defaultMaxIdleConns
 					cfg.IdleConnTimeout = &defaultIdleConnTimeout
@@ -145,7 +144,7 @@ func TestConfig(t *testing.T) {
 					Enabled: false,
 				},
 				Pipeline: "mypipeline",
-				ClientConfig: withDefaultHTTPClientConfig(func(cfg *confighttp.ClientConfig) {
+				customHTTPClientConfig: withDefaultHTTPClientConfig(func(cfg *customHTTPClientConfig) {
 					cfg.Timeout = 2 * time.Minute
 					cfg.MaxIdleConns = &defaultMaxIdleConns
 					cfg.IdleConnTimeout = &defaultIdleConnTimeout
@@ -216,7 +215,7 @@ func TestConfig(t *testing.T) {
 					Enabled: false,
 				},
 				Pipeline: "mypipeline",
-				ClientConfig: withDefaultHTTPClientConfig(func(cfg *confighttp.ClientConfig) {
+				customHTTPClientConfig: withDefaultHTTPClientConfig(func(cfg *customHTTPClientConfig) {
 					cfg.Timeout = 2 * time.Minute
 					cfg.MaxIdleConns = &defaultMaxIdleConns
 					cfg.IdleConnTimeout = &defaultIdleConnTimeout
@@ -446,8 +445,8 @@ func withDefaultConfig(fns ...func(*Config)) *Config {
 	return cfg
 }
 
-func withDefaultHTTPClientConfig(fns ...func(config *confighttp.ClientConfig)) confighttp.ClientConfig {
-	cfg := confighttp.NewDefaultClientConfig()
+func withDefaultHTTPClientConfig(fns ...func(config *customHTTPClientConfig)) customHTTPClientConfig {
+	cfg := newCustomHTTPClientConfig()
 	for _, fn := range fns {
 		fn(&cfg)
 	}

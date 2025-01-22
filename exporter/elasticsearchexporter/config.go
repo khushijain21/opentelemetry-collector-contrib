@@ -4,20 +4,27 @@
 package elasticsearchexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/elasticsearchexporter"
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcompression"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/exporter/exporterbatcher"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.uber.org/zap"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/publicsuffix"
 )
 
 // Config defines configuration for Elastic exporter.
@@ -59,13 +66,13 @@ type Config struct {
 	// https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html
 	Pipeline string `mapstructure:"pipeline"`
 
-	confighttp.ClientConfig `mapstructure:",squash"`
-	Authentication          AuthenticationSettings `mapstructure:",squash"`
-	Discovery               DiscoverySettings      `mapstructure:"discover"`
-	Retry                   RetrySettings          `mapstructure:"retry"`
-	Flush                   FlushSettings          `mapstructure:"flush"`
-	Mapping                 MappingsSettings       `mapstructure:"mapping"`
-	LogstashFormat          LogstashFormatSettings `mapstructure:"logstash_format"`
+	customHTTPClientConfig `mapstructure:",squash"`
+	Authentication         AuthenticationSettings `mapstructure:",squash"`
+	Discovery              DiscoverySettings      `mapstructure:"discover"`
+	Retry                  RetrySettings          `mapstructure:"retry"`
+	Flush                  FlushSettings          `mapstructure:"flush"`
+	Mapping                MappingsSettings       `mapstructure:"mapping"`
+	LogstashFormat         LogstashFormatSettings `mapstructure:"logstash_format"`
 
 	// TelemetrySettings contains settings useful for testing/debugging purposes
 	// This is experimental and may change at any time.
@@ -78,6 +85,146 @@ type Config struct {
 	// If Batcher.Enabled is non-nil (i.e. batcher::enabled is specified),
 	// then the Flush will be ignored even if Batcher.Enabled is false.
 	Batcher BatcherConfig `mapstructure:"batcher"`
+}
+
+type customHTTPClientConfig struct {
+	*confighttp.ClientConfig
+	verification_mode string
+}
+
+// we set verification_mode, ca_trusted_fingerprint etc on elasticsearchexporter level for now, until we find better solution
+func newCustomHTTPClientConfig() customHTTPClientConfig {
+	config := confighttp.NewDefaultClientConfig()
+	return customHTTPClientConfig{
+		ClientConfig:      &config,
+		verification_mode: "full",
+	}
+}
+
+// the only point here is this will need to be maintained. An extra overhead
+func (hcs customHTTPClientConfig) toClient(ctx context.Context, host component.Host, settings component.TelemetrySettings) (*http.Client, error) {
+	tlsCfg, err := hcs.TLSSetting.LoadTLSConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// injecting tls parameters here
+	tlsCfg.VerifyConnection = func(cs tls.ConnectionState) error {
+		// perform verification here
+		return nil
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = tlsCfg
+
+	if hcs.ReadBufferSize > 0 {
+		transport.ReadBufferSize = hcs.ReadBufferSize
+	}
+	if hcs.WriteBufferSize > 0 {
+		transport.WriteBufferSize = hcs.WriteBufferSize
+	}
+
+	if hcs.MaxIdleConns != nil {
+		transport.MaxIdleConns = *hcs.MaxIdleConns
+	}
+
+	if hcs.MaxIdleConnsPerHost != nil {
+		transport.MaxIdleConnsPerHost = *hcs.MaxIdleConnsPerHost
+	}
+
+	if hcs.MaxConnsPerHost != nil {
+		transport.MaxConnsPerHost = *hcs.MaxConnsPerHost
+	}
+
+	if hcs.IdleConnTimeout != nil {
+		transport.IdleConnTimeout = *hcs.IdleConnTimeout
+	}
+
+	// Setting the Proxy URL
+	if hcs.ProxyURL != "" {
+		proxyURL, parseErr := url.ParseRequestURI(hcs.ProxyURL)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+
+	transport.DisableKeepAlives = hcs.DisableKeepAlives
+
+	if hcs.HTTP2ReadIdleTimeout > 0 {
+		transport2, transportErr := http2.ConfigureTransports(transport)
+		if transportErr != nil {
+			return nil, fmt.Errorf("failed to configure http2 transport: %w", transportErr)
+		}
+		transport2.ReadIdleTimeout = hcs.HTTP2ReadIdleTimeout
+		transport2.PingTimeout = hcs.HTTP2PingTimeout
+	}
+
+	clientTransport := (http.RoundTripper)(transport)
+
+	// The Auth RoundTripper should always be the innermost to ensure that
+	// request signing-based auth mechanisms operate after compression
+	// and header middleware modifies the request
+	if hcs.Auth != nil {
+		ext := host.GetExtensions()
+		if ext == nil {
+			return nil, errors.New("extensions configuration not found")
+		}
+
+		httpCustomAuthRoundTripper, aerr := hcs.Auth.GetClientAuthenticator(ctx, ext)
+		if aerr != nil {
+			return nil, aerr
+		}
+
+		clientTransport, err = httpCustomAuthRoundTripper.RoundTripper(clientTransport)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// requires headerRoundTripper to be a public struct
+	// if len(hcs.Headers) > 0 {
+	// 	clientTransport = &headerRoundTripper{
+	// 		transport: clientTransport,
+	// 		headers:   hcs.Headers,
+	// 	}
+	// }
+
+	// requires newCompressRoundTripper to be a public method
+	// // Compress the body using specified compression methods if non-empty string is provided.
+	// // Supporting gzip, zlib, deflate, snappy, and zstd; none is treated as uncompressed.
+	// if hcs.Compression.IsCompressed() {
+	// 	clientTransport, err = newCompressRoundTripper(clientTransport, hcs.Compression)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
+
+	// requires getLeveledMeterProvider to be a public method
+	// otelOpts := []otelhttp.Option{
+	// 	otelhttp.WithTracerProvider(settings.TracerProvider),
+	// 	otelhttp.WithPropagators(otel.GetTextMapPropagator()),
+	// 	otelhttp.WithMeterProvider(getLeveledMeterProvider(settings)),
+	// }
+
+	// wrapping http transport with otelhttp transport to enable otel instrumentation
+	// if settings.TracerProvider != nil && settings.MeterProvider != nil {
+	// 	clientTransport = otelhttp.NewTransport(clientTransport, otelOpts...)
+	// }
+
+	var jar http.CookieJar
+	if hcs.Cookies != nil && hcs.Cookies.Enabled {
+		jar, err = cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &http.Client{
+		Transport: clientTransport,
+		Timeout:   hcs.Timeout,
+		Jar:       jar,
+	}, nil
 }
 
 // BatcherConfig holds configuration for exporterbatcher.

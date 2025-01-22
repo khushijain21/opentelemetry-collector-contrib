@@ -90,7 +90,7 @@ func newElasticsearchClient(
 	telemetry component.TelemetrySettings,
 	userAgent string,
 ) (*elasticsearch.Client, error) {
-	httpClient, err := config.ClientConfig.ToClient(ctx, host, telemetry)
+	httpClient, err := config.customHTTPClientConfig.toClient(ctx, host, telemetry)
 	if err != nil {
 		return nil, err
 	}

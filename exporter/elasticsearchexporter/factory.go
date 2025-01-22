@@ -12,7 +12,6 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcompression"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterbatcher"
@@ -43,14 +42,14 @@ func createDefaultConfig() component.Config {
 	qs := exporterhelper.NewDefaultQueueConfig()
 	qs.Enabled = false
 
-	httpClientConfig := confighttp.NewDefaultClientConfig()
+	httpClientConfig := newCustomHTTPClientConfig()
 	httpClientConfig.Timeout = 90 * time.Second
 	httpClientConfig.Compression = configcompression.TypeGzip
 
 	return &Config{
-		QueueSettings: qs,
-		ClientConfig:  httpClientConfig,
-		LogsIndex:     defaultLogsIndex,
+		QueueSettings:          qs,
+		customHTTPClientConfig: httpClientConfig,
+		LogsIndex:              defaultLogsIndex,
 		LogsDynamicIndex: DynamicIndexSetting{
 			Enabled: false,
 		},
