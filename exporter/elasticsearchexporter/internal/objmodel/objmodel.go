@@ -143,7 +143,7 @@ func (doc *Document) Add(key string, v Value) {
 }
 
 // AddString adds a string to the document.
-func (doc *Document) AddString(key string, v string) {
+func (doc *Document) AddString(key, v string) {
 	if v != "" {
 		doc.Add(key, StringValue(v))
 	}
@@ -196,11 +196,27 @@ func (doc *Document) AddAttribute(key string, attribute pcommon.Value) {
 
 // AddEvents converts and adds span events to the document.
 func (doc *Document) AddEvents(key string, events ptrace.SpanEventSlice) {
-	for i := 0; i < events.Len(); i++ {
-		e := events.At(i)
+	for _, e := range events.All() {
 		doc.AddTimestamp(flattenKey(key, e.Name()+".time"), e.Timestamp())
 		doc.AddAttributes(flattenKey(key, e.Name()), e.Attributes())
 	}
+}
+
+// AddLinks adds a slice of span links to the document.
+func (doc *Document) AddLinks(key string, links ptrace.SpanLinkSlice) {
+	if links.Len() == 0 {
+		return
+	}
+
+	linkValues := make([]Value, links.Len())
+	for i, link := range links.All() {
+		linkObj := Document{}
+		linkObj.AddTraceID("trace_id", link.TraceID())
+		linkObj.AddSpanID("span_id", link.SpanID())
+		linkValues[i] = Value{kind: KindObject, doc: linkObj}
+	}
+
+	doc.Add(key, ArrValue(linkValues...))
 }
 
 func (doc *Document) sort() {
@@ -272,10 +288,11 @@ func newJSONVisitor(w io.Writer) *json.Visitor {
 	return v
 }
 
-// Serialize writes the document to the given writer. The serializer will create nested objects if dedot is true.
-//
-// NOTE: The documented MUST be sorted if dedot is true.
+// Serialize writes the document to the given writer. The document fields will be
+// deduplicated and, if dedot is true, turned into nested objects prior to
+// serialization.
 func (doc *Document) Serialize(w io.Writer, dedot bool) error {
+	doc.Dedup()
 	v := newJSONVisitor(w)
 	return doc.iterJSON(v, dedot)
 }
@@ -340,7 +357,7 @@ func (doc *Document) iterJSONDedot(w *json.Visitor) error {
 
 			// remove levels and append write list of outstanding '}' into the writer
 			if L > 0 {
-				for delta := objPrefix[L:]; len(delta) > 0; {
+				for delta := objPrefix[L:]; delta != ""; {
 					idx := strings.IndexByte(delta, '.')
 					if idx < 0 {
 						break
@@ -554,21 +571,20 @@ func arrFromAttributes(aa pcommon.Slice) []Value {
 	}
 
 	values := make([]Value, aa.Len())
-	for i := 0; i < aa.Len(); i++ {
-		values[i] = ValueFromAttribute(aa.At(i))
+	for i, a := range aa.All() {
+		values[i] = ValueFromAttribute(a)
 	}
 	return values
 }
 
 func appendAttributeFields(fields []field, path string, am pcommon.Map) []field {
-	am.Range(func(k string, val pcommon.Value) bool {
+	for k, val := range am.All() {
 		fields = appendAttributeValue(fields, path, k, val)
-		return true
-	})
+	}
 	return fields
 }
 
-func appendAttributeValue(fields []field, path string, key string, attr pcommon.Value) []field {
+func appendAttributeValue(fields []field, path, key string, attr pcommon.Value) []field {
 	if attr.Type() == pcommon.ValueTypeEmpty {
 		return fields
 	}

@@ -13,8 +13,10 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata"
 )
@@ -113,12 +115,12 @@ func TestLoadConfig(t *testing.T) {
 							Endpoint:  "localhost:9876",
 							Transport: confignet.TransportTypeTCP,
 						},
-						TLSSetting: &configtls.ServerConfig{
+						TLS: configoptional.Some(configtls.ServerConfig{
 							Config: configtls.Config{
 								CertFile: "/test.crt",
 								KeyFile:  "/test.key",
 							},
-						},
+						}),
 					},
 					ThriftHTTP: &confighttp.ServerConfig{
 						Endpoint: ":3456",
@@ -137,7 +139,7 @@ func TestLoadConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, sub.Unmarshal(cfg))
 
-			assert.NoError(t, component.ValidateConfig(cfg))
+			assert.NoError(t, xconfmap.Validate(cfg))
 			assert.Equal(t, tt.expected, cfg)
 		})
 	}
@@ -162,7 +164,7 @@ func TestFailedLoadConfig(t *testing.T) {
 	sub, err = cm.Sub(component.NewIDWithName(metadata.Type, "empty").String())
 	require.NoError(t, err)
 	err = sub.Unmarshal(cfg)
-	assert.EqualError(t, err, "empty config for Jaeger receiver")
+	assert.ErrorContains(t, err, "empty config for Jaeger receiver")
 }
 
 func TestInvalidConfig(t *testing.T) {
@@ -234,7 +236,7 @@ func TestInvalidConfig(t *testing.T) {
 
 			tC.apply(cfg)
 
-			err := component.ValidateConfig(cfg)
+			err := xconfmap.Validate(cfg)
 			assert.Error(t, err, tC.err)
 		})
 	}

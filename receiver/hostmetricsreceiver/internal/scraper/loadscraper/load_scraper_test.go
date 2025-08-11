@@ -72,10 +72,10 @@ func TestScrape(t *testing.T) {
 	resultsMapLock := sync.Mutex{}
 
 	testFn := func(t *testing.T, test testCase) {
-		// wait for messurement to start
+		// wait for measurement to start
 		<-startChan
 
-		scraper := newLoadScraper(context.Background(), scrapertest.NewNopSettings(), test.config)
+		scraper := newLoadScraper(context.Background(), scrapertest.NewNopSettings(metadata.Type), test.config)
 		if test.loadFunc != nil {
 			scraper.load = test.loadFunc
 		}
@@ -168,7 +168,7 @@ func assertMetricHasSingleDatapoint(t *testing.T, metric pmetric.Metric, expecte
 	assert.Equal(t, 1, metric.Gauge().DataPoints().Len())
 }
 
-func assertCompareAveragePerCPU(t *testing.T, average pmetric.Metric, standard pmetric.Metric, numCPU int) {
+func assertCompareAveragePerCPU(t *testing.T, average, standard pmetric.Metric, numCPU int) {
 	valAverage := average.Gauge().DataPoints().At(0).DoubleValue()
 	valStandard := standard.Gauge().DataPoints().At(0).DoubleValue()
 	if valAverage == 0 && valStandard == 0 {
@@ -179,7 +179,7 @@ func assertCompareAveragePerCPU(t *testing.T, average pmetric.Metric, standard p
 		// For hardware with only 1 cpu, results must be very close
 		assert.InDelta(t, valAverage, valStandard, 0.1)
 	} else {
-		// For hardward with multiple CPU, average per cpu is fatally less than standard
+		// For hardware with multiple CPU, average per cpu is fatally less than standard
 		assert.Less(t, valAverage, valStandard)
 	}
 }

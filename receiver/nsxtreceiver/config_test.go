@@ -41,7 +41,7 @@ func TestMetricValidation(t *testing.T) {
 			expectedError: errors.New("url scheme must be http or https"),
 		},
 		{
-			desc: "unparseable url",
+			desc: "unparsable url",
 			cfg: &Config{
 				ClientConfig: confighttp.ClientConfig{
 					Endpoint: "\x00",
@@ -100,7 +100,7 @@ func TestLoadConfig(t *testing.T) {
 	expected.Endpoint = "https://nsx-manager-endpoint"
 	expected.Username = "admin"
 	expected.Password = "${env:NSXT_PASSWORD}"
-	expected.TLSSetting.Insecure = true
+	expected.TLS.Insecure = true
 	expected.CollectionInterval = time.Minute
 
 	require.Equal(t, expected, cfg)

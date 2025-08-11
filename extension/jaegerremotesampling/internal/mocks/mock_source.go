@@ -6,14 +6,14 @@ package mocks // import "github.com/open-telemetry/opentelemetry-collector-contr
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 )
 
 type MockCfgMgr struct {
 	GetSamplingStrategyFunc func(ctx context.Context, serviceName string) (*api_v2.SamplingStrategyResponse, error)
 }
 
-func (m *MockCfgMgr) Close() error {
+func (*MockCfgMgr) Close() error {
 	return nil
 }
 

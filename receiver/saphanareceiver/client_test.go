@@ -36,7 +36,7 @@ func (m *testResultWrapper) Scan(dest ...any) error {
 	return nil
 }
 
-func (m *testResultWrapper) Close() error {
+func (*testResultWrapper) Close() error {
 	return nil
 }
 
@@ -107,7 +107,7 @@ func TestBasicConnectAndClose(t *testing.T) {
 
 func TestFailedPing(t *testing.T) {
 	dbWrapper := &testDBWrapper{}
-	dbWrapper.On("PingContext").Return(errors.New("Coult not ping host"))
+	dbWrapper.On("PingContext").Return(errors.New("Could not ping host"))
 	dbWrapper.On("Close").Return(nil)
 
 	factory := &testConnectionFactory{dbWrapper}

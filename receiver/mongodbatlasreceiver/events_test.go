@@ -24,6 +24,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest/plogtest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mongodbatlasreceiver/internal"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mongodbatlasreceiver/internal/metadata"
 )
 
 func TestStartAndShutdown(t *testing.T) {
@@ -52,7 +53,8 @@ func TestStartAndShutdown(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.desc, func(t *testing.T) {
 			sink := &consumertest.LogsSink{}
-			r := newEventsReceiver(receivertest.NewNopSettings(), tc.getConfig(), sink)
+			r, e := newEventsReceiver(receivertest.NewNopSettings(metadata.Type), tc.getConfig(), sink)
+			require.NoError(t, e)
 			err := r.Start(context.Background(), componenttest.NewNopHost(), storage.NewNopClient())
 			if tc.expectedStartErr != nil {
 				require.ErrorContains(t, err, tc.expectedStartErr.Error())
@@ -79,7 +81,10 @@ func TestContextDone(t *testing.T) {
 		},
 	}
 	sink := &consumertest.LogsSink{}
-	r := newEventsReceiver(receivertest.NewNopSettings(), cfg, sink)
+	r, er := newEventsReceiver(receivertest.NewNopSettings(metadata.Type), cfg, sink)
+	if er != nil {
+		t.Fatalf("failed to create receiver: %v", er)
+	}
 	r.pollInterval = 500 * time.Millisecond
 	mClient := &mockEventsClient{}
 	mClient.setupMock(t)
@@ -115,7 +120,8 @@ func TestPoll(t *testing.T) {
 	}
 
 	sink := &consumertest.LogsSink{}
-	r := newEventsReceiver(receivertest.NewNopSettings(), cfg, sink)
+	r, e := newEventsReceiver(receivertest.NewNopSettings(metadata.Type), cfg, sink)
+	require.NoError(t, e)
 	mClient := &mockEventsClient{}
 	mClient.setupMock(t)
 	r.client = mClient
@@ -160,7 +166,8 @@ func TestProjectGetFailure(t *testing.T) {
 	}
 
 	sink := &consumertest.LogsSink{}
-	r := newEventsReceiver(receivertest.NewNopSettings(), cfg, sink)
+	r, e := newEventsReceiver(receivertest.NewNopSettings(metadata.Type), cfg, sink)
+	require.NoError(t, e)
 	mClient := &mockEventsClient{}
 	mClient.On("GetProject", mock.Anything, "fake-project").Return(nil, fmt.Errorf("unable to get project: %d", http.StatusUnauthorized))
 	mClient.On("GetOrganization", mock.Anything, "fake-org").Return(nil, fmt.Errorf("unable to get org: %d", http.StatusUnauthorized))
@@ -201,7 +208,7 @@ func (mec *mockEventsClient) setupGetOrganization() {
 	}, nil)
 }
 
-func (mec *mockEventsClient) loadTestEvents(t *testing.T, filename string) []*mongodbatlas.Event {
+func (*mockEventsClient) loadTestEvents(t *testing.T, filename string) []*mongodbatlas.Event {
 	testEvents := filepath.Join("testdata", "events", "sample-payloads", filename)
 	eventBytes, err := os.ReadFile(testEvents)
 	require.NoError(t, err)
@@ -237,6 +244,6 @@ func (mec *mockEventsClient) GetOrganizationEvents(ctx context.Context, oID stri
 	return args.Get(0).([]*mongodbatlas.Event), args.Bool(1), args.Error(2)
 }
 
-func (mec *mockEventsClient) Shutdown() error {
+func (*mockEventsClient) Shutdown() error {
 	return nil
 }

@@ -51,7 +51,7 @@ const (
 )
 
 // Unmarshal the sketch payload, which contains the underlying Dogsketch structure used for the translation
-func (mt *MetricsTranslator) HandleSketchesPayload(req *http.Request) (sp []gogen.SketchPayload_Sketch, err error) {
+func (*MetricsTranslator) HandleSketchesPayload(req *http.Request) (sp []gogen.SketchPayload_Sketch, err error) {
 	buf := GetBuffer()
 	defer PutBuffer(buf)
 	if _, err := io.Copy(buf, req.Body); err != nil {
@@ -152,7 +152,7 @@ func mapSketchBucketsToHistogramBuckets(sketchKeys []int32, sketchCounts []uint3
 			continue
 		}
 		if sketchKeys[i] >= maxIndex {
-			// This should not happen, as sketches that contain bucket(s) with an index higher than the max
+			// This should not happen, as sketches that contain bucket(s) with an index greater than the max
 			// limit should have already been discarded. However, if there happens to be an index > maxIndex,
 			// it can cause an infinite loop within the below inner for loop on some operating systems. Therefore,
 			// throw an error for sketches that have an index above the max limit
