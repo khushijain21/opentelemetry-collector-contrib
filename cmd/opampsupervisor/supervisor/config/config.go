@@ -25,7 +25,7 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
-	"go.opentelemetry.io/collector/service/telemetry"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	config "go.opentelemetry.io/contrib/otelconf/v0.3.0"
 	"go.uber.org/zap/zapcore"
 )
@@ -111,6 +111,7 @@ type Capabilities struct {
 	ReportsHealth                  bool `mapstructure:"reports_health"`
 	ReportsRemoteConfig            bool `mapstructure:"reports_remote_config"`
 	ReportsAvailableComponents     bool `mapstructure:"reports_available_components"`
+	ReportsHeartbeat               bool `mapstructure:"reports_heartbeat"`
 }
 
 func (c Capabilities) SupportedCapabilities() protobufs.AgentCapabilities {
@@ -154,6 +155,9 @@ func (c Capabilities) SupportedCapabilities() protobufs.AgentCapabilities {
 
 	if c.ReportsAvailableComponents {
 		supportedCapabilities |= protobufs.AgentCapabilities_AgentCapabilities_ReportsAvailableComponents
+	}
+	if c.ReportsHeartbeat {
+		supportedCapabilities |= protobufs.AgentCapabilities_AgentCapabilities_ReportsHeartbeat
 	}
 
 	return supportedCapabilities
@@ -267,9 +271,9 @@ type AgentDescription struct {
 type Telemetry struct {
 	// TODO: Add more telemetry options
 	// Issue here: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/35582
-	Logs    Logs                   `mapstructure:"logs"`
-	Metrics Metrics                `mapstructure:"metrics"`
-	Traces  telemetry.TracesConfig `mapstructure:"traces"`
+	Logs    Logs                           `mapstructure:"logs"`
+	Metrics Metrics                        `mapstructure:"metrics"`
+	Traces  otelconftelemetry.TracesConfig `mapstructure:"traces"`
 
 	Resource map[string]*string `mapstructure:"resource"`
 }
@@ -339,6 +343,7 @@ func DefaultSupervisor() Supervisor {
 			ReportsHealth:                  true,
 			ReportsRemoteConfig:            false,
 			ReportsAvailableComponents:     false,
+			ReportsHeartbeat:               true,
 		},
 		Storage: Storage{
 			Directory: defaultStorageDir,

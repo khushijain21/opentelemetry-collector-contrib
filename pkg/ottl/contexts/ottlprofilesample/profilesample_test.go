@@ -4,7 +4,6 @@
 package ottlprofilesample // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/ottlprofilesample"
 
 import (
-	"context"
 	"slices"
 	"testing"
 	"time"
@@ -92,12 +91,12 @@ func Test_newPathGetSetter_Cache(t *testing.T) {
 			profileSample, profile := createProfileSampleTelemetry()
 
 			tCtx := NewTransformContext(profileSample, profile, pprofile.NewProfilesDictionary(), pcommon.NewInstrumentationScope(), pcommon.NewResource(), pprofile.NewScopeProfiles(), pprofile.NewResourceProfiles())
-			got, err := accessor.Get(context.Background(), tCtx)
+			got, err := accessor.Get(t.Context(), tCtx)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.orig, got)
 
 			tCtx = NewTransformContext(profileSample, pprofile.NewProfile(), pprofile.NewProfilesDictionary(), pcommon.NewInstrumentationScope(), pcommon.NewResource(), pprofile.NewScopeProfiles(), pprofile.NewResourceProfiles())
-			err = accessor.Set(context.Background(), tCtx, tt.newVal)
+			err = accessor.Set(t.Context(), tCtx, tt.newVal)
 			assert.NoError(t, err)
 
 			exProfileSample, exProfile := createProfileSampleTelemetry()
@@ -180,7 +179,7 @@ func Test_newPathGetSetter_higherContextPath(t *testing.T) {
 			accessor, err := pathExpressionParser(cacheGetter)(tt.path)
 			assert.NoError(t, err)
 
-			got, err := accessor.Get(context.Background(), ctx)
+			got, err := accessor.Get(t.Context(), ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, got)
 		})
@@ -191,8 +190,6 @@ func createProfileSampleTelemetry() (pprofile.Sample, pprofile.Profile) {
 	profile := pprofile.NewProfile()
 	sample := profile.Sample().AppendEmpty()
 	sample.SetLinkIndex(42)
-	sample.SetLocationsStartIndex(73)
-	sample.SetLocationsLength(97)
 
 	timestamps := sample.TimestampsUnixNano()
 	if timestamps.Len() == 0 {
@@ -200,7 +197,7 @@ func createProfileSampleTelemetry() (pprofile.Sample, pprofile.Profile) {
 		timestamps.Append(uint64(time.Now().Unix()))
 	}
 
-	values := sample.Value()
+	values := sample.Values()
 	if values.Len() == 0 {
 		values.EnsureCapacity(1)
 		values.Append(3)

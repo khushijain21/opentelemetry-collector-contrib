@@ -69,6 +69,10 @@ extensions:
     format: elb_access_log
 ```
 
+## Log Format Identification
+
+All logs processed by this extension are automatically tagged with an `awslogs_encoding.format` attribute at the scope level to identify the source format.
+
 #### VPC flow log record fields
 
 [VPC flow log record fields](https://docs.aws.amazon.com/vpc/latest/userguide/flow-log-records.html#flow-logs-fields) are mapped this way in the resulting OpenTelemetry log:
@@ -206,6 +210,7 @@ extensions:
 | `userIdentity.arn`                    | `aws.principal.arn`                                           |
 | `userIdentity.principalId`            | `aws.principal.id`                                            |
 | `userIdentity.type`                   | `aws.principal.type`                                          |
+| `userIdentity.accessKeyId`            | `aws.access_key.id`                                           |
 | `requestParameters`                   | `aws.request.parameters` (map of all request parameters)      |
 | `requestID`                           | `aws.request_id`                                              |
 | `resources`                           | `aws.resources` (as an array, if available)                   |
