@@ -9,18 +9,19 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen/internal/common"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen/internal/config"
 	types "github.com/open-telemetry/opentelemetry-collector-contrib/cmd/telemetrygen/pkg"
 )
 
 // Config describes the test scenario.
 type Config struct {
-	common.Config
+	config.Config
 	NumTraces        int
 	NumChildSpans    int
 	PropagateContext bool
 	StatusCode       string
 	Batch            bool
+	NumSpanLinks     int
 
 	SpanDuration time.Duration
 }
@@ -42,6 +43,7 @@ func (c *Config) Flags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.PropagateContext, "marshal", c.PropagateContext, "Whether to marshal trace context via HTTP headers")
 	fs.StringVar(&c.StatusCode, "status-code", c.StatusCode, "Status code to use for the spans, one of (Unset, Error, Ok) or the equivalent integer (0,1,2)")
 	fs.BoolVar(&c.Batch, "batch", c.Batch, "Whether to batch traces")
+	fs.IntVar(&c.NumSpanLinks, "span-links", c.NumSpanLinks, "Number of span links to generate for each span")
 	fs.DurationVar(&c.SpanDuration, "span-duration", c.SpanDuration, "The duration of each generated span.")
 }
 
@@ -57,6 +59,7 @@ func (c *Config) SetDefaults() {
 	c.PropagateContext = false
 	c.StatusCode = "0"
 	c.Batch = true
+	c.NumSpanLinks = 0
 	c.SpanDuration = 123 * time.Microsecond
 }
 
